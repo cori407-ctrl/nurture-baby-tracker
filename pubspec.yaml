@@ -1,0 +1,53 @@
+name: nurture
+description: "Nurture — a free, private, no-ads newborn feeding & diaper tracker."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.0
+
+  # State
+  flutter_riverpod: ^2.6.1
+
+  # Local database (100% on-device, no accounts)
+  sqlite3: 2.9.4
+  sqlite3_flutter_libs: ^0.5.18
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Settings persistence
+  shared_preferences: ^2.2.3
+
+  # Local notifications (appointment reminders)
+  flutter_local_notifications: ^19.1.0
+  flutter_timezone: ^2.1.0
+  timezone: ^0.10.0
+
+  # PDF export for the pediatrician
+  pdf: ^3.10.8
+  printing: ^5.12.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/nurture-icon-1024.png"
+  min_sdk_android: 21
+  adaptive_icon_foreground: "assets/icon/nurture-icon-fg.png"
+  adaptive_icon_background: "#1A2332"

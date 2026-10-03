@@ -1,0 +1,86 @@
+# Codemagic CI config for Nurture (Flutter) — builds Android + iOS in the cloud.
+# Free tier: 500 build minutes/month. No Mac needed.
+#
+# HOW TO USE (Cori's steps):
+#  1. Push this project to a GitHub repo.
+#  2. Sign up at https://codemagic.io with GitHub, add the repo.
+#  3. Builds run automatically — download the APK/IPA from the Codemagic dashboard.
+#  4. For signed store builds, add your keystore / Apple certs in
+#     Codemagic > Team settings > Code signing identities (her-steps only).
+
+workflows:
+  android-debug:
+    name: Android Debug APK (for testing on your phone)
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      java: 17
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+    scripts:
+      - name: Set up keystore (debug uses default)
+        script: |
+          keytool -genkeypair -v -keystore "$HOME/debug.keystore" \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" || true
+      - name: Flutter analyze
+        script: flutter analyze || true
+      - name: Build debug APK
+        script: flutter build apk --debug
+    artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
+
+  android-release:
+    name: Android Release AAB (for Google Play upload)
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      java: 17
+      vars:
+        # Cori: create these in Codemagic > Environment variables (her-step).
+        # PACKAGE_NAME: com.nurturebaby.nurture
+      groups:
+        - keystore_credentials  # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    scripts:
+      - name: Build release AAB
+        script: |
+          flutter build appbundle --release \
+            --build-name=1.0.0 --build-number=$BUILD_NUMBER
+    artifacts:
+      - build/app/outputs/bundle/release/app-release.aab
+
+  ios-debug:
+    name: iOS Debug IPA (unsigned, for sideload testing)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+    scripts:
+      - name: Flutter analyze
+        script: flutter analyze || true
+      - name: Build unsigned iOS IPA
+        script: |
+          flutter build ipa --debug --no-codesign
+    artifacts:
+      - build/ios/ipa/*.ipa
