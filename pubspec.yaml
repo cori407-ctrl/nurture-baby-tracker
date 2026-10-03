@@ -23,7 +23,7 @@ dependencies:
   path: ^1.9.0
 
   # Settings persistence
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.5.3
 
   # Local notifications (appointment reminders)
   flutter_local_notifications: ^19.1.0
