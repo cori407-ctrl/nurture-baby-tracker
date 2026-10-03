@@ -43,11 +43,8 @@ workflows:
     environment:
       flutter: stable
       java: 17
-      vars:
-        # Cori: create these in Codemagic > Environment variables (her-step).
-        # PACKAGE_NAME: com.nurturebaby.nurture
       groups:
-        - keystore_credentials  # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+        - keystore_credentials  # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD (Cori: create in Codemagic > Environment variables)
     triggering:
       events:
         - tag
