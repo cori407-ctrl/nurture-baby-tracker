@@ -27,7 +27,7 @@ dependencies:
 
   # Local notifications (appointment reminders)
   flutter_local_notifications: ^19.1.0
-  flutter_timezone: ^2.1.0
+  flutter_timezone: ^3.0.1
   timezone: ^0.10.0
 
   # PDF export for the pediatrician
