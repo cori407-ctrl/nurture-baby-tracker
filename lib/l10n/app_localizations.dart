@@ -284,6 +284,18 @@ abstract class AppLocalizations {
   /// **'Diapers today'**
   String get diapersToday;
 
+  /// No description provided for @editEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit entry'**
+  String get editEntry;
+
+  /// No description provided for @entrySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry updated'**
+  String get entrySaved;
+
   /// No description provided for @eventDeleted.
   ///
   /// In en, this message translates to:

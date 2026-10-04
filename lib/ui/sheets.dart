@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../data/database.dart';
 import '../l10n/app_localizations.dart';
 import '../state/providers.dart';
 import '../utils/units.dart';
@@ -394,6 +396,287 @@ class _BurpSheetState extends ConsumerState<_BurpSheet> {
                   child: Text(l10n.logButton),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------- Edit existing entry ----------------
+
+/// Opens an edit sheet for an existing log entry (fix a wrong amount, time,
+/// side, or diaper kind without delete + re-add).
+Future<void> showEditEventSheet(BuildContext context, LogEvent event) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => _EditEventSheet(event: event),
+  );
+}
+
+class _EditEventSheet extends ConsumerStatefulWidget {
+  final LogEvent event;
+  const _EditEventSheet({required this.event});
+
+  @override
+  ConsumerState<_EditEventSheet> createState() => _EditEventSheetState();
+}
+
+class _EditEventSheetState extends ConsumerState<_EditEventSheet> {
+  late final TextEditingController _amountCtrl;
+  late final TextEditingController _minutesCtrl;
+  late String _side;
+  late String _kind;
+  late DateTime _timestamp;
+
+  static String _displayNumber(int ml, String unit) {
+    final v = Units.mlToDisplay(ml, unit);
+    if (unit == Units.oz) {
+      return v == v.roundToDouble() ? '${v.round()}' : v.toStringAsFixed(1);
+    }
+    return '${v.round()}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.event;
+    final unit = ref.read(unitProvider);
+    _side = e.side ?? 'left';
+    _kind = e.kind;
+    _timestamp = e.timestamp;
+    _amountCtrl = TextEditingController(
+      text: e.kind == EventKind.formula
+          ? _displayNumber(e.amountMl ?? 0, unit)
+          : '',
+    );
+    _minutesCtrl = TextEditingController(
+      text: e.durationMin != null ? '${e.durationMin}' : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _minutesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickTimestamp() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _timestamp,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_timestamp),
+    );
+    if (time == null) return;
+    setState(() {
+      _timestamp = DateTime(
+          date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  Future<void> _save() async {
+    final e = widget.event;
+    final unit = ref.read(unitProvider);
+    int? amountMl;
+    int? durationMin;
+    String? side;
+
+    if (_kind == EventKind.formula) {
+      final v = double.tryParse(_amountCtrl.text.trim());
+      if (v == null || v <= 0) return; // invalid — keep sheet open
+      amountMl = Units.displayToMl(v, unit);
+    } else if (_kind == EventKind.breastfeed) {
+      final v = int.tryParse(_minutesCtrl.text.trim());
+      if (v == null || v <= 0) return;
+      durationMin = v;
+      side = _side;
+    } else if (_kind == EventKind.burp) {
+      final v = int.tryParse(_minutesCtrl.text.trim());
+      durationMin = (v != null && v > 0) ? v : null;
+    }
+
+    final updated = LogEvent(
+      id: e.id,
+      kind: _kind,
+      timestamp: _timestamp,
+      amountMl: amountMl,
+      durationMin: durationMin,
+      side: side,
+      note: e.note,
+    );
+    await ref.read(logActionsProvider).updateEvent(updated);
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).entrySaved)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final unit = ref.watch(unitProvider);
+    final isDiaper = _kind == EventKind.diaperWet ||
+        _kind == EventKind.diaperDirty ||
+        _kind == EventKind.diaperBoth;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.editEntry,
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+
+            // Kind-specific fields.
+            if (_kind == EventKind.formula)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 130,
+                    child: TextField(
+                      controller: _amountCtrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      textAlign: TextAlign.center,
+                      autofocus: true,
+                      style: const TextStyle(fontSize: 20),
+                      decoration: InputDecoration(
+                        suffixText: unit == Units.oz
+                            ? l10n.unitOzShort
+                            : l10n.unitMlShort,
+                        border: const OutlineInputBorder(),
+                      ),
+                      onSubmitted: (_) => _save(),
+                    ),
+                  ),
+                ],
+              ),
+            if (_kind == EventKind.breastfeed) ...[
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(
+                      value: 'left',
+                      label: Text(l10n.leftSide),
+                      icon: const Icon(Icons.arrow_back)),
+                  ButtonSegment(
+                      value: 'right',
+                      label: Text(l10n.rightSide),
+                      icon: const Icon(Icons.arrow_forward)),
+                ],
+                selected: {_side},
+                onSelectionChanged: (s) => setState(() => _side = s.first),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: TextField(
+                      controller: _minutesCtrl,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 20),
+                      decoration: InputDecoration(
+                        suffixText: l10n.minutesLabel,
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _save(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (_kind == EventKind.burp)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: TextField(
+                      controller: _minutesCtrl,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 20),
+                      decoration: InputDecoration(
+                        hintText: '3',
+                        suffixText: l10n.minutesLabel,
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _save(),
+                    ),
+                  ),
+                ],
+              ),
+            if (isDiaper)
+              Wrap(
+                spacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  ChoiceChip(
+                    label: Text(l10n.logWet),
+                    selected: _kind == EventKind.diaperWet,
+                    onSelected: (_) =>
+                        setState(() => _kind = EventKind.diaperWet),
+                  ),
+                  ChoiceChip(
+                    label: Text(l10n.logDirty),
+                    selected: _kind == EventKind.diaperDirty,
+                    onSelected: (_) =>
+                        setState(() => _kind = EventKind.diaperDirty),
+                  ),
+                  ChoiceChip(
+                    label: Text(l10n.logBoth),
+                    selected: _kind == EventKind.diaperBoth,
+                    onSelected: (_) =>
+                        setState(() => _kind = EventKind.diaperBoth),
+                  ),
+                ],
+              ),
+
+            const SizedBox(height: 12),
+            // Timestamp editor (all kinds).
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule),
+              title: Text(DateFormat('EEE, MMM d · h:mm a').format(_timestamp)),
+              trailing: const Icon(Icons.edit_outlined),
+              onTap: _pickTimestamp,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _save,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(l10n.saveButton,
+                      style: const TextStyle(fontSize: 18)),
+                ),
+              ),
             ),
           ],
         ),

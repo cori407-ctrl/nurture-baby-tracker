@@ -149,6 +149,8 @@ class LogActions {
 
   Future<void> deleteEvent(int id) => _db.deleteEvent(id);
 
+  Future<void> updateEvent(LogEvent e) => _db.updateEvent(e);
+
   Future<void> undoEvent(int id) => _db.deleteEvent(id);
 
   // ---- Appointments ----

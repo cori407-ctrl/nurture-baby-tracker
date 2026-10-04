@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../services/pdf_export.dart';
 import '../state/providers.dart';
 import '../utils/units.dart';
+import 'sheets.dart';
 import 'widgets.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -258,6 +259,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         return false;
                       },
                       child: ListTile(
+                        onTap: () => showEditEventSheet(context, e),
                         leading: Icon(_kindIcon(e.kind),
                             color:
                                 Theme.of(context).colorScheme.primary),

@@ -214,6 +214,14 @@ class AppDatabase {
     _notifyEvents();
   }
 
+  Future<void> updateEvent(LogEvent e) async {
+    _db.execute(
+      'UPDATE log_events SET kind = ?, timestamp = ?, amount_ml = ?, duration_min = ?, side = ?, note = ? WHERE id = ?',
+      [e.kind, e.timestamp.millisecondsSinceEpoch, e.amountMl, e.durationMin, e.side, e.note, e.id],
+    );
+    _notifyEvents();
+  }
+
   List<LogEvent> _eventsForDay(DateTime day) {
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));

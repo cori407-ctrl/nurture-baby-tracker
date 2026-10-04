@@ -105,6 +105,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get diapersToday => 'Diapers today';
 
   @override
+  String get editEntry => 'Edit entry';
+
+  @override
+  String get entrySaved => 'Entry updated';
+
+  @override
   String get eventDeleted => 'Entry deleted';
 
   @override

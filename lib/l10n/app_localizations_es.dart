@@ -105,6 +105,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get diapersToday => 'Pañales hoy';
 
   @override
+  String get editEntry => 'Editar registro';
+
+  @override
+  String get entrySaved => 'Registro actualizado';
+
+  @override
   String get eventDeleted => 'Registro eliminado';
 
   @override
