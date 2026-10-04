@@ -52,6 +52,28 @@ workflows:
         - pattern: 'v*'
           include: true
     scripts:
+      - name: Set up release keystore
+        script: |
+          # The release keystore (android/nurture-release.keystore) is NOT in the repo.
+          # Cori: upload it in Codemagic > Teams > Code signing identities as an
+          # Android keystore (then CM_KEYSTORE_PATH is set automatically), OR add it
+          # as a secure environment file and set KEYSTORE_PATH to its location.
+          if [ -n "$CM_KEYSTORE_PATH" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            echo "Using Codemagic code-signing keystore."
+          elif [ -n "$KEYSTORE_PATH" ] && [ -f "$KEYSTORE_PATH" ]; then
+            echo "Using keystore from KEYSTORE_PATH."
+          else
+            echo "ERROR: No release keystore found." >&2
+            echo "Upload nurture-release.keystore to Codemagic (Code signing identities" >&2
+            echo "or a secure file + KEYSTORE_PATH env var), then re-run." >&2
+            exit 1
+          fi
+          if [ -z "$KEYSTORE_PASSWORD" ] && [ -z "$CM_KEYSTORE_PASSWORD" ]; then
+            echo "ERROR: KEYSTORE_PASSWORD (or CM_KEYSTORE_PASSWORD) is not set." >&2
+            exit 1
+          fi
+      - name: Flutter analyze
+        script: flutter analyze || true
       - name: Build release AAB
         script: |
           flutter build appbundle --release \

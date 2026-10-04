@@ -30,11 +30,42 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // Release signing credentials come from environment variables so
+            // secrets never live in the repo.
+            //   KEYSTORE_PATH      - path to nurture-release.keystore
+            //                        (falls back to CM_KEYSTORE_PATH set by
+            //                        Codemagic code signing, then to the local file)
+            //   KEYSTORE_PASSWORD  - keystore password (or CM_KEYSTORE_PASSWORD)
+            //   KEY_ALIAS          - key alias, "nurture" (or CM_KEY_ALIAS)
+            //   KEY_PASSWORD       - key password (or CM_KEY_PASSWORD)
+            val keystorePath = System.getenv("KEYSTORE_PATH")
+                ?: System.getenv("CM_KEYSTORE_PATH")
+                ?: "nurture-release.keystore"
+            storeFile = file(keystorePath)
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: System.getenv("CM_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: System.getenv("CM_KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+                ?: System.getenv("CM_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use the release signing config when credentials are present
+            // (Codemagic). Fall back to debug keys for local `flutter run --release`.
+            signingConfig = if (System.getenv("KEYSTORE_PASSWORD") != null ||
+                System.getenv("CM_KEYSTORE_PASSWORD") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            // Keep R8/minification off for the first store release to avoid
+            // shrinking surprises; can be enabled later once verified.
+            isMinifyEnabled = false
         }
     }
 }

@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Release signing secrets — NEVER commit these.
+# The keystore file must be uploaded to Codemagic as a secure file / code
+# signing identity, and its password kept in hidden_files/ (also ignored).
+/android/nurture-release.keystore
+/hidden_files/
