@@ -115,7 +115,8 @@ class HomeScreen extends ConsumerWidget {
                   label: l10n.logBurp,
                   sublabel: l10n.burpTitle,
                   color: Colors.green,
-                  onTap: () => showBurpSheet(context),
+                  onTap: () =>
+                      _instantLog(context, ref, EventKind.burp),
                 ),
               ],
             ),
