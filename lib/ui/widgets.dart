@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/celebration.dart';
 import '../state/providers.dart';
 import '../utils/units.dart';
 
@@ -82,9 +83,13 @@ class UnitToggle extends ConsumerWidget {
 }
 
 /// Undo-capable snackbar helper.
+/// Also fires the 3am-proof entry celebration (haptic + chime + confetti),
+/// since every save in the app goes through here.
 void showLoggedSnackbar(BuildContext context, String message, int eventId,
     {VoidCallback? onUndo}) {
   final l10n = AppLocalizations.of(context)!;
+  // Celebration first: instant multi-sense confirmation the entry landed.
+  Celebration.play(context);
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
