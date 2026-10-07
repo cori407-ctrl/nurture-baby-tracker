@@ -46,7 +46,7 @@ workflows:
       groups:
         - keystore_credentials  # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD (Cori: create in Codemagic > Environment variables)
       android_signing:
-        - keystore_reference: nurture-release-keystore
+        - keystore: nurture-release-keystore
     triggering:
       events:
         - tag
