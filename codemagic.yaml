@@ -45,6 +45,8 @@ workflows:
       java: 17
       groups:
         - keystore_credentials  # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD (Cori: create in Codemagic > Environment variables)
+      android_signing:
+        - keystore_reference: nurture-release-keystore
     triggering:
       events:
         - tag
@@ -54,28 +56,47 @@ workflows:
     scripts:
       - name: Set up release keystore
         script: |
-          # The release keystore (android/nurture-release.keystore) is NOT in the repo.
-          # Cori: upload it in Codemagic > Teams > Code signing identities as an
-          # Android keystore (then CM_KEYSTORE_PATH is set automatically), OR add it
-          # as a secure environment file and set KEYSTORE_PATH to its location.
-          if [ -n "$CM_KEYSTORE_PATH" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
-            echo "Using Codemagic code-signing keystore."
-          elif [ -n "$KEYSTORE_PATH" ] && [ -f "$KEYSTORE_PATH" ]; then
+          # The release keystore is uploaded in Codemagic > Team settings > Code signing identities
+          # as "nurture-release-keystore" and referenced via android_signing in this yaml.
+          # Codemagic exposes it via CM_KEYSTORE_PATH, or FCI_KEYSTORE_PATH on newer infra.
+          for VAR in CM_KEYSTORE_PATH FCI_KEYSTORE_PATH; do
+            P=$(printenv "$VAR")
+            if [ -n "$P" ] && [ -f "$P" ]; then
+              echo "Using Codemagic code-signing keystore ($VAR)."
+              export KEYSTORE_PATH="$P"
+              break
+            fi
+          done
+          if [ -n "$KEYSTORE_PATH" ] && [ -f "$KEYSTORE_PATH" ]; then
             echo "Using keystore from KEYSTORE_PATH."
           else
             echo "ERROR: No release keystore found." >&2
             echo "Upload nurture-release.keystore to Codemagic (Code signing identities" >&2
-            echo "or a secure file + KEYSTORE_PATH env var), then re-run." >&2
+            echo "with reference name 'nurture-release-keystore'), then re-run." >&2
             exit 1
           fi
           if [ -z "$KEYSTORE_PASSWORD" ] && [ -z "$CM_KEYSTORE_PASSWORD" ]; then
             echo "ERROR: KEYSTORE_PASSWORD (or CM_KEYSTORE_PASSWORD) is not set." >&2
             exit 1
           fi
+          # Export for the build step
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> $CM_ENV || true
       - name: Flutter analyze
         script: flutter analyze || true
       - name: Build release AAB
         script: |
+          # Re-resolve keystore path (env vars don't persist across Codemagic script steps
+          # unless exported via $CM_ENV, so resolve again here to be safe).
+          if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
+            for VAR in CM_KEYSTORE_PATH FCI_KEYSTORE_PATH; do
+              P=$(printenv "$VAR")
+              if [ -n "$P" ] && [ -f "$P" ]; then
+                export KEYSTORE_PATH="$P"
+                break
+              fi
+            done
+          fi
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH"
           flutter build appbundle --release \
             --build-name=1.0.0 --build-number=$BUILD_NUMBER
     artifacts:
