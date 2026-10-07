@@ -66,6 +66,9 @@ android {
             // Keep R8/minification off for the first store release to avoid
             // shrinking surprises; can be enabled later once verified.
             isMinifyEnabled = false
+            // Explicitly off: some plugin/AGP default was enabling resource
+            // shrinking, which requires code shrinking to be on (build failure).
+            isShrinkResources = false
         }
     }
 }
