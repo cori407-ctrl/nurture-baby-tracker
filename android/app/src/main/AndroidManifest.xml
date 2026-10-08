@@ -3,7 +3,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Required for scheduling exact reminder times -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <application
         android:label="Nurture"
         android:name="${applicationName}"
