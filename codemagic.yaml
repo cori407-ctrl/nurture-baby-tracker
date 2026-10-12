@@ -124,3 +124,79 @@ workflows:
           flutter build ipa --debug --no-codesign
     artifacts:
       - build/ios/ipa/*.ipa
+
+  ios-release:
+    # Release IPA for App Store Connect upload (added 12 Oct 2026).
+    # Trigger: push a tag like `ios-v1.0.0` (Codemagic > build > Start new build
+    # also works). The IPA downloads from the build's Artifacts tab.
+    name: iOS Release IPA (App Store)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: "com.nurturebaby.nurture"   # registered in App Store Connect 12 Oct 2026
+        APP_STORE_TEAM_ID: "U842U9QDT4"        # Cori's Apple Developer Team ID
+      groups:
+        # REQUIRED (Cori: create once in Codemagic > Team settings > Environment variables):
+        #   APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
+        #   APP_STORE_CONNECT_PRIVATE_KEY  (from an App Store Connect API key with
+        #   App Manager role — Codemagic uses it to fetch/create the distribution
+        #   certificate + App Store provisioning profile automatically).
+        - app_store_connect
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'ios-v*'
+          include: true
+    scripts:
+      - name: Flutter analyze
+        script: flutter analyze || true
+      - name: Set up keychain for code signing
+        script: keychain initialize
+      - name: Fetch signing files (distribution cert + App Store profile)
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+      - name: Apply profiles to Xcode project
+        script: xcode-project use-profiles
+      - name: Write export options plist (profile UUID resolved at build time)
+        script: |
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_UUID=$(ls "$PROFILES_DIR" | head -1 | sed 's/\.mobileprovision$//')
+          if [ -z "$PROFILE_UUID" ]; then
+            echo "ERROR: no provisioning profile found in $PROFILES_DIR" >&2
+            exit 1
+          fi
+          echo "Using provisioning profile UUID: $PROFILE_UUID"
+          cat > "$HOME/export_options.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>$APP_STORE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_UUID</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+      - name: Build release IPA
+        script: |
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist="$HOME/export_options.plist"
+    artifacts:
+      - build/ios/ipa/*.ipa
