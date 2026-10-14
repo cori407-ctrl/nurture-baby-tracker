@@ -339,3 +339,12 @@ workflows:
       - $CM_BUILD_DIR/build/ios/ipa/*.ipa
       - build/ios/**/*.ipa
       - $CM_BUILD_DIR/collected/*.ipa
+    # Publishing added 14 Oct 2026 at Cori's request ("TestFlight"): upload the
+    # IPA to App Store Connect using the same API-key env group the signing
+    # steps already use, and submit it to TestFlight. NOT for App Store
+    # review — submit_to_app_store stays off; App Review submission always
+    # needs Cori's fresh explicit confirmation.
+    publishing:
+      app_store_connect:
+        submit_to_testflight: true
+        submit_to_app_store: false
