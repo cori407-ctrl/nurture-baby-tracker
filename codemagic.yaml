@@ -183,9 +183,19 @@ workflows:
           # UUID lookup below finds them wherever the fetch step put them.
           mkdir -p "$PROFILES_DIR"
           cp "$FETCHED_PROFILES_DIR"/*.mobileprovision "$PROFILES_DIR/" 2>/dev/null || true
-          PROFILE_UUID=$(ls "$PROFILES_DIR" | head -1 | sed 's/\.mobileprovision$//')
-          if [ -z "$PROFILE_UUID" ]; then
+          PROFILE_FILE=$(ls "$PROFILES_DIR"/*.mobileprovision 2>/dev/null | head -1)
+          if [ -z "$PROFILE_FILE" ]; then
             echo "ERROR: no provisioning profile found in $PROFILES_DIR" >&2
+            exit 1
+          fi
+          # The .mobileprovision FILENAME is NOT the profile UUID
+          # (fetch-signing-files names downloads IOS_APP_STORE_<id>_<rand>) —
+          # the real UUID is the :UUID key inside the profile's signed plist.
+          # Decode the profile and extract it; fail loudly if it is not a UUID.
+          security cms -D -i "$PROFILE_FILE" > /tmp/decoded_profile.plist
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/decoded_profile.plist)
+          if ! echo "$PROFILE_UUID" | grep -Eq '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'; then
+            echo "ERROR: extracted profile UUID does not look like a UUID: '$PROFILE_UUID' (from $PROFILE_FILE)" >&2
             exit 1
           fi
           echo "Using provisioning profile UUID: $PROFILE_UUID"
@@ -227,12 +237,23 @@ workflows:
           FETCHED_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
           # Same profile resolution as the export-options step above: sync
           # the fetched profiles from the Xcode UserData dir into the legacy
-          # MobileDevice dir, then take the first profile's UUID.
+          # MobileDevice dir, then extract the first profile's real UUID
+          # from inside the file (its filename is not the UUID).
           mkdir -p "$PROFILES_DIR"
           cp "$FETCHED_PROFILES_DIR"/*.mobileprovision "$PROFILES_DIR/" 2>/dev/null || true
-          PROFILE_UUID=$(ls "$PROFILES_DIR" | head -1 | sed 's/\.mobileprovision$//')
-          if [ -z "$PROFILE_UUID" ]; then
+          PROFILE_FILE=$(ls "$PROFILES_DIR"/*.mobileprovision 2>/dev/null | head -1)
+          if [ -z "$PROFILE_FILE" ]; then
             echo "ERROR: no provisioning profile found in $PROFILES_DIR" >&2
+            exit 1
+          fi
+          # The .mobileprovision FILENAME is NOT the profile UUID
+          # (fetch-signing-files names downloads IOS_APP_STORE_<id>_<rand>) —
+          # the real UUID is the :UUID key inside the profile's signed plist.
+          # Decode the profile and extract it; fail loudly if it is not a UUID.
+          security cms -D -i "$PROFILE_FILE" > /tmp/decoded_profile.plist
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/decoded_profile.plist)
+          if ! echo "$PROFILE_UUID" | grep -Eq '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'; then
+            echo "ERROR: extracted profile UUID does not look like a UUID: '$PROFILE_UUID' (from $PROFILE_FILE)" >&2
             exit 1
           fi
           echo "Exporting with provisioning profile UUID: $PROFILE_UUID"
