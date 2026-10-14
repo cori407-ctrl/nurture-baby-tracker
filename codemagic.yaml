@@ -212,5 +212,13 @@ workflows:
             --build-name=1.0.0 \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist="$HOME/export_options.plist"
+    # `flutter build ipa` writes the IPA to build/ios/ipa/*.ipa, yet build 3
+    # (73ddc43, fully green incl. this step) ended with "No artifacts were
+    # found" — Codemagic resolves artifact globs relative to the workflow
+    # working directory, so a lone relative pattern can silently match
+    # nothing. The extra patterns anchor the same output from the build-dir
+    # root and sweep build/ios recursively; non-matching globs are ignored.
     artifacts:
       - build/ios/ipa/*.ipa
+      - $CM_BUILD_DIR/build/ios/ipa/*.ipa
+      - build/ios/**/*.ipa
