@@ -212,13 +212,42 @@ workflows:
             --build-name=1.0.0 \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist="$HOME/export_options.plist"
-    # `flutter build ipa` writes the IPA to build/ios/ipa/*.ipa, yet build 3
-    # (73ddc43, fully green incl. this step) ended with "No artifacts were
-    # found" — Codemagic resolves artifact globs relative to the workflow
-    # working directory, so a lone relative pattern can silently match
-    # nothing. The extra patterns anchor the same output from the build-dir
-    # root and sweep build/ios recursively; non-matching globs are ignored.
+      - name: Collect IPA
+        script: |
+          # Builds 3 AND 4 finished fully green incl. "Build release IPA",
+          # yet Publishing said "No artifacts were found" both times — even
+          # with $CM_BUILD_DIR-anchored globs. So the IPA is NOT landing in
+          # build/ios/ipa relative to the repo root (or is never written).
+          # Sweep the whole build tree for it, copy any hit into collected/,
+          # and FAIL LOUDLY if there is none: a red build beats a silent
+          # green one, and the find output below reveals the real path.
+          mkdir -p "$CM_BUILD_DIR/collected"
+          echo "Searching for *.ipa under $CM_BUILD_DIR ..."
+          find "$CM_BUILD_DIR" -path "$CM_BUILD_DIR/collected" -prune -o \
+            -path "$CM_BUILD_DIR/.git" -prune -o \
+            -type f -name "*.ipa" -print
+          find "$CM_BUILD_DIR" -path "$CM_BUILD_DIR/collected" -prune -o \
+            -path "$CM_BUILD_DIR/.git" -prune -o \
+            -type f -name "*.ipa" -exec cp -v {} "$CM_BUILD_DIR/collected/" \;
+          # Fallback: a shallow sweep of $HOME in case the export landed there.
+          find "$HOME" -maxdepth 4 -type f -name "*.ipa" \
+            -exec cp -vn {} "$CM_BUILD_DIR/collected/" \; 2>/dev/null || true
+          COUNT=$(ls "$CM_BUILD_DIR/collected"/*.ipa 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ERROR: no .ipa file found anywhere under $CM_BUILD_DIR or $HOME (maxdepth 4)." >&2
+            echo "build/ios tree for diagnosis:" >&2
+            find "$CM_BUILD_DIR/build/ios" 2>/dev/null | head -100 >&2
+            exit 1
+          fi
+          echo "Collected $COUNT IPA(s):"
+          ls -la "$CM_BUILD_DIR/collected"
+    # `flutter build ipa` should write the IPA to build/ios/ipa/*.ipa, yet
+    # builds 3 (73ddc43) and 4 (b385c82, with the anchored globs below) both
+    # ended "No artifacts were found". The "Collect IPA" step above sweeps
+    # the whole build tree into collected/ and fails the build if no IPA
+    # exists at all; the collected/ pattern is the one that must hit.
     artifacts:
       - build/ios/ipa/*.ipa
       - $CM_BUILD_DIR/build/ios/ipa/*.ipa
       - build/ios/**/*.ipa
+      - $CM_BUILD_DIR/collected/*.ipa
