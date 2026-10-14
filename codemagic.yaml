@@ -212,6 +212,73 @@ workflows:
             --build-name=1.0.0 \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist="$HOME/export_options.plist"
+      - name: Export IPA from archive
+        script: |
+          set -e
+          # Build 5 (7d26760) proved the failure mode: the archive lands at
+          # build/ios/archive/Runner.xcarchive with a complete signed app
+          # inside, but flutter's own export (driven by the hand-written
+          # $HOME/export_options.plist, method: app-store + legacy keys)
+          # silently produces NO .ipa anywhere and still reports green.
+          # Don't debug that black box — export the known-good archive
+          # ourselves with xcodebuild and a fresh, modern export plist.
+          # If flutter's export ever works too, Collect IPA just finds two.
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          FETCHED_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          # Same profile resolution as the export-options step above: sync
+          # the fetched profiles from the Xcode UserData dir into the legacy
+          # MobileDevice dir, then take the first profile's UUID.
+          mkdir -p "$PROFILES_DIR"
+          cp "$FETCHED_PROFILES_DIR"/*.mobileprovision "$PROFILES_DIR/" 2>/dev/null || true
+          PROFILE_UUID=$(ls "$PROFILES_DIR" | head -1 | sed 's/\.mobileprovision$//')
+          if [ -z "$PROFILE_UUID" ]; then
+            echo "ERROR: no provisioning profile found in $PROFILES_DIR" >&2
+            exit 1
+          fi
+          echo "Exporting with provisioning profile UUID: $PROFILE_UUID"
+          cat > "$HOME/export_options_fixed.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>U842U9QDT4</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.nurturebaby.nurture</key>
+              <string>$PROFILE_UUID</string>
+            </dict>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <false/>
+            <key>stripSwiftSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          echo "Generated export options plist:"
+          cat "$HOME/export_options_fixed.plist"
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/ios/archive/Runner.xcarchive"
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "ERROR: archive not found at $ARCHIVE_PATH" >&2
+            exit 1
+          fi
+          mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$CM_BUILD_DIR/build/ios/ipa" \
+            -exportOptionsPlist "$HOME/export_options_fixed.plist"
+          echo "Export output:"
+          ls -la "$CM_BUILD_DIR/build/ios/ipa"
       - name: Collect IPA
         script: |
           # Builds 3 AND 4 finished fully green incl. "Build release IPA",
@@ -228,7 +295,7 @@ workflows:
             -type f -name "*.ipa" -print
           find "$CM_BUILD_DIR" -path "$CM_BUILD_DIR/collected" -prune -o \
             -path "$CM_BUILD_DIR/.git" -prune -o \
-            -type f -name "*.ipa" -exec cp -v {} "$CM_BUILD_DIR/collected/" \;
+            -type f -name "*.ipa" -exec cp -vf {} "$CM_BUILD_DIR/collected/" \;
           # Fallback: a shallow sweep of $HOME in case the export landed there.
           find "$HOME" -maxdepth 4 -type f -name "*.ipa" \
             -exec cp -vn {} "$CM_BUILD_DIR/collected/" \; 2>/dev/null || true
