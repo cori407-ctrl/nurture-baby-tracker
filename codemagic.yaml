@@ -176,6 +176,13 @@ workflows:
       - name: Write export options plist (profile UUID resolved at build time)
         script: |
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          FETCHED_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          # Current codemagic-cli-tools save fetched provisioning profiles to the
+          # Xcode UserData dir above; this step (and older Xcode tooling) looks in
+          # the legacy MobileDevice dir. Sync the fetched profiles across so the
+          # UUID lookup below finds them wherever the fetch step put them.
+          mkdir -p "$PROFILES_DIR"
+          cp "$FETCHED_PROFILES_DIR"/*.mobileprovision "$PROFILES_DIR/" 2>/dev/null || true
           PROFILE_UUID=$(ls "$PROFILES_DIR" | head -1 | sed 's/\.mobileprovision$//')
           if [ -z "$PROFILE_UUID" ]; then
             echo "ERROR: no provisioning profile found in $PROFILES_DIR" >&2
